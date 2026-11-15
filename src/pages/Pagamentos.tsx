@@ -182,7 +182,7 @@ function Consulta() {
         <Campo rotulo="Id da cobrança">
           <input type="number" min={1} value={id} onChange={(e) => setId(e.target.value)} placeholder="ex.: 1" />
         </Campo>
-        <button className="botao botao--pagamentos" disabled={!id}>Buscar</button>
+        <button className="botao botao--primario" disabled={!id}>Buscar</button>
       </form>
       <Erro erro={erro} />
       {cobranca && (

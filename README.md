@@ -1,11 +1,17 @@
 # codeplex-front
 
-Front (React + Vite) da **Bilheteria** e de **Pagamentos**.
+**Plateia**: loja de ingressos (React + Vite) ligada às APIs de **Bilheteria** e **Pagamentos**.
 
-- **Bilheteria**: cria eventos, compra ingressos e acompanha o status ao vivo
-  (`PENDENTE` → `PAGO`/`CANCELADO` quando o webhook chega).
-- **Pagamentos**: lista as cobranças com status, `tentativas_webhook` e `webhook_entregue`, e consulta
-  por id.
+| Página | Rota | O que faz |
+|---|---|---|
+| Vitrine | `#/` | Evento em destaque, busca e cards dos próximos eventos |
+| Evento | `#/evento/{id}` | Detalhes e checkout (quantidade, CPF, final do cartão) |
+| Pedido | `#/pedido/{id}` | Acompanha o pagamento ao vivo e mostra o ingresso quando `PAGO` |
+| Meus ingressos | `#/meus-ingressos` | Ingressos do CPF usado na compra |
+| Área do produtor | `#/produtor/eventos` e `#/produtor/pagamentos` | Publica eventos, vendas e receita, cobranças de Pagamentos |
+
+Ambiente de demonstração: cartão final `4242` aprova e `0000` recusa. As imagens dos eventos são
+ilustrativas (picsum.photos), porque a API não tem foto.
 
 ## Rodar
 
