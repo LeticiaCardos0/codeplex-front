@@ -6,37 +6,60 @@ import { formatarDataHora, formatarMoeda, usePolling } from '../util'
 
 type Origem = 'lista' | 'ingressos'
 
+// Guardados fora do componente para valer entre trocas de aba.
+/** Se o Pagamentos não tem GET /cobrancas (404/405), não tenta de novo. */
+let listaIndisponivel = false
+/** Cobranças já finalizadas (decididas e com webhook entregue) não mudam mais: não busca de novo. */
+const finalizadas = new Map<number, Cobranca>()
+/** cobranca_id que deram 404 (ex.: Pagamentos zerou o banco): não busca de novo. */
+const inexistentes = new Set<number>()
+
+const finalizada = (c: Cobranca) => c.status !== 'PENDENTE' && c.webhook_entregue !== false
+
 export default function Pagamentos() {
   const [cobrancas, setCobrancas] = useState<Cobranca[]>([])
-  const [origem, setOrigem] = useState<Origem>('lista')
+  const [origem, setOrigem] = useState<Origem>(listaIndisponivel ? 'ingressos' : 'lista')
   const [erro, setErro] = useState<unknown>(null)
 
   const recarregar = useCallback(async () => {
-    try {
-      // 1ª opção: GET /cobrancas (se o time de Pagamentos tiver).
-      const lista = await pagamentos.listarCobrancas()
-      setCobrancas([...lista].sort((a, b) => b.id - a.id))
-      setOrigem('lista')
-      setErro(null)
-      return
-    } catch (e) {
-      if (e instanceof ApiError && e.offline) {
-        setErro(e)
+    if (!listaIndisponivel) {
+      try {
+        // 1ª opção: GET /cobrancas (se o time de Pagamentos tiver).
+        const lista = await pagamentos.listarCobrancas()
+        setCobrancas([...lista].sort((a, b) => b.id - a.id))
+        setOrigem('lista')
+        setErro(null)
         return
+      } catch (e) {
+        if (e instanceof ApiError && e.offline) {
+          setErro(e)
+          return
+        }
+        listaIndisponivel = true
       }
     }
-    // 2ª opção (só contrato): pega as cobranca_id dos ingressos e busca GET /cobrancas/{id}.
+    // 2ª opção (só contrato): pega as cobranca_id dos ingressos e busca GET /cobrancas/{id},
+    // apenas das que ainda podem mudar.
     try {
       const ingressos = await bilheteria.listarIngressos()
       const ids = [...new Set(ingressos.map((i) => i.cobranca_id))]
-      const resultados = await Promise.allSettled(ids.map((id) => pagamentos.obterCobranca(id)))
-      const ok = resultados.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
-      const offline = resultados.find(
-        (r) => r.status === 'rejected' && r.reason instanceof ApiError && r.reason.offline,
-      )
-      setCobrancas(ok.sort((a, b) => b.id - a.id))
+      const aBuscar = ids.filter((id) => !finalizadas.has(id) && !inexistentes.has(id))
+      const resultados = await Promise.allSettled(aBuscar.map((id) => pagamentos.obterCobranca(id)))
+      let offline: unknown = null
+      resultados.forEach((r, i) => {
+        if (r.status === 'fulfilled') {
+          if (finalizada(r.value)) finalizadas.set(r.value.id, r.value)
+        } else if (r.reason instanceof ApiError && r.reason.offline) {
+          offline = r.reason
+        } else if (r.reason instanceof ApiError && r.reason.status === 404) {
+          inexistentes.add(aBuscar[i])
+        }
+      })
+      const abertas = resultados.flatMap((r) => (r.status === 'fulfilled' && !finalizada(r.value) ? [r.value] : []))
+      const todas = [...abertas, ...ids.flatMap((id) => (finalizadas.has(id) ? [finalizadas.get(id)!] : []))]
+      setCobrancas(todas.sort((a, b) => b.id - a.id))
       setOrigem('ingressos')
-      setErro(offline && offline.status === 'rejected' ? offline.reason : null)
+      setErro(offline)
     } catch (e) {
       setErro(e)
     }

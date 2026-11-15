@@ -21,11 +21,10 @@ export default function App() {
   usePolling(async () => {
     const [b, p] = await Promise.all([
       verificar(bilheteria.listarEventos),
-      // 404 nao_encontrado também prova que o serviço está no ar.
-      verificar(() => pagamentos.obterCobranca(0)),
+      verificar(pagamentos.ping),
     ])
     setOnline({ bilheteria: b, pagamentos: p })
-  }, 5000)
+  }, 15000)
 
   return (
     <div className={`app app--${aba}`}>
